@@ -56,6 +56,9 @@
 #include "IOs.h"
 uint8_t CN_flag = 0;
 uint16_t PB_event = 0;
+extern uint8_t longPress = 0; // Flag for the long press
+extern uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
+extern uint8_t pressActive = 0; //Checks if any button is pressed
 
 
 
@@ -78,6 +81,18 @@ int main(void) {
     IEC0bits.T1IE = 1;      // enable interrupt
     PR1 = 6250;   // ≈10 ms @ 500 kHz Fcy, prescaler 1:8
     TMR1 = 0;
+
+
+    // === TIMER 3: Press-duration timer ===
+    T3CONbits.TON = 0;      // keep off until needed
+    T3CONbits.TCS = 0;      // internal clock (Fcy)
+    T3CONbits.TCKPS = 3;      // prescaler 1:256
+    T3CONbits.TSIDL = 0;      // run in idle mode
+    IPC2bits.T3IP = 2;      // interrupt priority = 2
+    IFS0bits.T3IF = 0;      // clear flag
+    IEC0bits.T3IE = 1;      // enable interrupt
+    PR3 = 5859;   // ≈0.5 s period at Fcy = 500 kHz, 1:256 prescale
+    TMR3 = 0;
     
     
 
@@ -89,7 +104,7 @@ int main(void) {
     while(1) {
         
         Idle();
-        
+        // If a PB event occurs run this code
         if (PB_event) {
             IOcheck();
             PB_event = 0;
@@ -116,9 +131,19 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
 
 }
 
-// Timer 3 interrupt subroutine
+// Timer 3 interrupt Long vs Short button press
 void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
-    //Don't forget to clear the timer 2 interrupt flag!
+    IFS0bits.T3IF = 0;
+    //Checks if a button is still pressed
+    if(pressActive){
+        // If a button is still pressed increment pressDuration
+        pressDuration++;
+        if(pressDuration >= 6){
+            longPress = 1;
+        }
+    }
+    //Todo: make sure in IOCheck when button is not pressed it stops timer 3
+    //Todo: make sure in IOcheck when button is not pressed longPress = 0 and pressDuration = 0
 }
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
