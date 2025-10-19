@@ -54,11 +54,11 @@
 #include "clkChange.h"
 #include "UART2.h"
 #include "IOs.h"
-uint8_t CN_flag = 0;
-uint16_t PB_event = 0;
-extern uint8_t longPress = 0; // Flag for the long press
-extern uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
-extern uint8_t pressActive = 0; //Checks if any button is pressed
+volatile uint8_t longPress = 0; // Flag for the long press
+volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
+volatile uint8_t pressActive = 0; //Checks if any button is pressed
+volatile uint8_t pressDone = 0;
+uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 
 
 
@@ -71,27 +71,16 @@ int main(void) {
     AD1PCFG = 0xFFFF; /* keep this line as it sets I/O pins that can also be analog to be digital */
     
     newClk(500);
-    // === TIMER 1: CN-DEBOUNCE TIMER ===
-    T1CONbits.TON = 0;      // off until CN fires
-    T1CONbits.TCS = 0;      // internal clock (Fcy)
-    T1CONbits.TCKPS = 1;      // prescaler 1:8
-    T1CONbits.TSIDL = 0;      // continue in Idle
-    IPC0bits.T1IP = 3;      // higher priority than T3
-    IFS0bits.T1IF = 0;      // clear interrupt flag
-    IEC0bits.T1IE = 1;      // enable interrupt
-    PR1 = 6250;   // ≈10 ms @ 500 kHz Fcy, prescaler 1:8
-    TMR1 = 0;
-
 
     // === TIMER 3: Press-duration timer ===
-    T3CONbits.TON = 0;      // keep off until needed
-    T3CONbits.TCS = 0;      // internal clock (Fcy)
-    T3CONbits.TCKPS = 3;      // prescaler 1:256
-    T3CONbits.TSIDL = 0;      // run in idle mode
-    IPC2bits.T3IP = 2;      // interrupt priority = 2
-    IFS0bits.T3IF = 0;      // clear flag
-    IEC0bits.T3IE = 1;      // enable interrupt
-    PR3 = 5859;   // ≈0.5 s period at Fcy = 500 kHz, 1:256 prescale
+    T3CONbits.TON = 0;       // keep off until needed
+    T3CONbits.TCS = 0;       // internal clock
+    T3CONbits.TCKPS = 3;     // 1:256 prescale
+    T3CONbits.TSIDL = 0;     // run in idle mode
+    IPC2bits.T3IP = 2;       // priority = 2
+    IFS0bits.T3IF = 0;       // clear flag
+    IEC0bits.T3IE = 1;  // enable interrupt
+    PR3 = 48; // 25 ms period
     TMR3 = 0;
     
     
@@ -105,25 +94,18 @@ int main(void) {
         
         Idle();
         // If a PB event occurs run this code
-        if (PB_event) {
+        if (pressDone) {
             IOcheck();
-            PB_event = 0;
+            pressDone = 0;
+            longPress = 0;
+            pressDuration = 0;
         }
     }
     
     return 0;
 }
 
-// Timer 1 interrupt bounce handeling
-void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
-    IFS0bits.T1IF = 0;    
-    T1CONbits.TON = 0;
-    // Check if the 10ms debounce timer has gone off     
-    if (CN_flag) {
-        CN_flag = 0;
-        PB_event = 1;      
-    }
-}
+
 
 
 // Timer 2 interrupt subroutine
@@ -134,21 +116,35 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
 // Timer 3 interrupt Long vs Short button press
 void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     IFS0bits.T3IF = 0;
-    //Checks if a button is still pressed
-    if(pressActive){
-        // If a button is still pressed increment pressDuration
+    if (pressActive) {
         pressDuration++;
-        if(pressDuration >= 6){
+        if (pressDuration >= 120) {   
             longPress = 1;
+            pressDone = 1;    
+            pressActive = 0;
+            T3CONbits.TON = 0;
         }
     }
-    //Todo: make sure in IOCheck when button is not pressed it stops timer 3
-    //Todo: make sure in IOcheck when button is not pressed longPress = 0 and pressDuration = 0
 }
-uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
+
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
-    IFS1bits.CNIF = 0; 
-    CN_flag = 1;
-    TMR1 = 0;
-    T1CONbits.TON = 1;
+    IFS1bits.CNIF = 0;
+    pb1 = !PORTBbits.RB7;
+    pb2 = !PORTBbits.RB4;
+    pb3 = !PORTAbits.RA4;
+    uint8_t anyPressed = pb1 || pb2 || pb3;
+    if (anyPressed) {
+        pressActive = 1;
+        pressDone = 0;
+        longPress = 0;
+        pressDuration = 0;
+        TMR3 = 0;
+        T3CONbits.TON = 1;       
+    }
+    else if (pressActive) {
+        pressActive = 0;
+        pressDone = 1;
+        T3CONbits.TON = 0;       
+    }
 }
+
