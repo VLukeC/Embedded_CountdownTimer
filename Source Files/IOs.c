@@ -49,10 +49,7 @@ void IOinit() {
 void IOcheck(){
     uint8_t pressed = pb1 + pb2 + pb3;
     if(pressed == 0){
-        
         LATBbits.LATB9 = 0;
-        
-        
     }
     else if(pressed == 1){
         if(pb1){
@@ -95,7 +92,7 @@ void IOcheck(){
     }
     else if(pressed == 3){
         LATBbits.LATB9 = 1;
-        Disp2String("\r2025 ENSF 460 L02 ? Group04");
+        Disp2String("\r2025 ENSF 460 L02 ? Group02");
     }
     
 }
