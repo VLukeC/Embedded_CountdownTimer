@@ -122,6 +122,10 @@ int main(void) {
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0;     // Clear interrupt flag
     if (!running) {
+        if(pressDuration >= 180){
+            // This is so when PB1 is held down for long enough it starts incrementing by 5 instead of by 1
+            longPress = 1;
+        }
         pressDone = 1;
     }
 }
@@ -138,7 +142,6 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     if (pressActive) {
         pressDuration++;
         if(pressDuration >= 60 && !running){
-            longPress = 1;
             pressDone = 1;
             T1CONbits.TON = 1;
         }
@@ -168,7 +171,8 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
     else if (pressActive) {
         pressActive = 0;
         pressDone = 1;
-        T3CONbits.TON = 0;       
+        T3CONbits.TON = 0;
+        T1CONbits.TON = 0;       
     }
 }
 

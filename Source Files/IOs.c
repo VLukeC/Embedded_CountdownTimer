@@ -78,10 +78,16 @@ void IOcheck(){
         LATBbits.LATB9 = 1;
         if(pb1 && pb2){
             Disp2String("\rPB1 and PB2 are pressed");
-            T3CONbits.TON=0;
-            T3CONbits.TCKPS=1;
-            PR3=((min*60)+sec)/0.000256f ;//needs to be adjusted based on the clock 
-            downcount = PR3 - TMR2;
+            if(!longPress){
+                T3CONbits.TON=0;
+                T3CONbits.TCKPS=1;
+                PR3=((min*60)+sec)/0.000256f ;//needs to be adjusted based on the clock 
+                downcount = PR3 - TMR2;
+            }
+            if(longPress){
+                min = 0;
+                sec = 0;
+            }
 
         }
         else if(pb2 && pb3){
@@ -97,5 +103,7 @@ void IOcheck(){
     }
     
 }
+
+
 
 
