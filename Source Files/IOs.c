@@ -16,6 +16,9 @@ void IOinit() {
     // LEDS
     TRISBbits.TRISB9 = 0;
     LATBbits.LATB9 = 0;
+
+    TRISAbits.TRISA6 = 0;
+    LATAbits.LATA6 = 0;
     
     // CN Interrupt config
     

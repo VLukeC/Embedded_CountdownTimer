@@ -54,10 +54,10 @@
 #include "clkChange.h"
 #include "UART2.h"
 #include "IOs.h"
-volatile uint8_t longPress = 0; // Flag for the long press
-volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
-volatile uint8_t pressActive = 0; //Checks if any button is pressed
-volatile uint8_t pressDone = 0;
+extern volatile uint8_t longPress = 0; // Flag for the long press
+extern volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
+extern volatile uint8_t pressActive = 0; //Checks if any button is pressed
+extern volatile uint8_t pressDone = 0;
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 
 
@@ -75,12 +75,12 @@ int main(void) {
     // === TIMER 3: Press-duration timer ===
     T3CONbits.TON = 0;       // keep off until needed
     T3CONbits.TCS = 0;       // internal clock
-    T3CONbits.TCKPS = 3;     // 1:256 prescale
+    T3CONbits.TCKPS = 2;     // 1:64 prescale
     T3CONbits.TSIDL = 0;     // run in idle mode
     IPC2bits.T3IP = 2;       // priority = 2
     IFS0bits.T3IF = 0;       // clear flag
     IEC0bits.T3IE = 1;  // enable interrupt
-    PR3 = 48; // 25 ms period
+    PR3 = 100; // 25 ms period
     TMR3 = 0;
     
     
@@ -147,4 +147,5 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
         T3CONbits.TON = 0;       
     }
 }
+
 
