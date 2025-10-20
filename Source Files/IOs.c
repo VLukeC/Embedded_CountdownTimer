@@ -12,6 +12,7 @@ uint16_t downcount;
 extern uint8_t pb1, pb2, pb3;
 extern uint8_t min=0,sec=0;
 extern uint16_t T2flag;
+extern bool running = false;
 void IOinit() {
     // LEDS
     TRISBbits.TRISB9 = 0;

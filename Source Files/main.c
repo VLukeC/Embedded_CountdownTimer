@@ -72,6 +72,18 @@ int main(void) {
     
     newClk(500);
 
+    // === TIMER 1: 1-second periodic timer ===
+    T1CONbits.TON = 0;        // Off initially
+    T1CONbits.TCS = 0;        // Internal clock (Fcy)
+    T1CONbits.TCKPS = 3;      // 1:256 prescaler
+    T1CONbits.TSIDL = 0;      // Continue in Idle
+    IPC0bits.T1IP = 2;        // Priority
+    IFS0bits.T1IF = 0;        // Clear interrupt flag
+    IEC0bits.T1IE = 1;        // Enable interrupt
+
+    PR1 = 976;                // 1-second period at Fcy=250kHz, prescale=256
+    TMR1 = 0;
+
     // === TIMER 3: Press-duration timer ===
     T3CONbits.TON = 0;       // keep off until needed
     T3CONbits.TCS = 0;       // internal clock
@@ -106,6 +118,13 @@ int main(void) {
 }
 
 
+// Timer 1
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
+    IFS0bits.T1IF = 0;     // Clear interrupt flag
+    if (!running) {
+        pressDone = 1;
+    }
+}
 
 
 // Timer 2 interrupt subroutine
@@ -118,7 +137,12 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     IFS0bits.T3IF = 0;
     if (pressActive) {
         pressDuration++;
-        if (pressDuration >= 120) {   
+        if(pressDuration >= 60 && !running){
+            longPress = 1;
+            pressDone = 1;
+            T1CONbits.TON = 1;
+        }
+        if (pressDuration >= 120 && running) {   
             longPress = 1;
             pressDone = 1;    
             pressActive = 0;
