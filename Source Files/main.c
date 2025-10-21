@@ -61,7 +61,10 @@ volatile uint8_t pressActive = 0; //Checks if any button is pressed
 volatile uint8_t pressDone = 0;
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 uint8_t running = 0; // false by default
+uint8_t paused = 0;
 uint8_t T2flag = 0;
+uint8_t ioFlag = 0;
+uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0;
 
 
 
@@ -72,6 +75,18 @@ uint8_t T2flag = 0;
 
 int main(void) {
     AD1PCFG = 0xFFFF; /* keep this line as it sets I/O pins that can also be analog to be digital */
+
+    // === TIMER 1: 1-second periodic timer ===
+    T1CONbits.TON = 0;        // Off initially
+    T1CONbits.TCS = 0;        // Internal clock (Fcy)
+    T1CONbits.TCKPS = 3;      // 1:256 prescaler
+    T1CONbits.TSIDL = 0;      // Continue in Idle
+    IPC0bits.T1IP = 2;        // Priority
+    IFS0bits.T1IF = 0;        // Clear interrupt flag
+    IEC0bits.T1IE = 1;        // Enable interrupt
+
+    PR1 = 976;             
+    TMR1 = 0;
     
     
     // === Timer 2: 1 second update timer for countdown ===
@@ -109,6 +124,10 @@ int main(void) {
     while(1) {
         Idle();
         // If a PB event occurs run this code
+        if(ioFlag){
+            ioFlag = 0;
+            IOcheck();
+        }
         if (pressDone) {
             IOcheck();
             pressDone = 0;
@@ -123,13 +142,23 @@ int main(void) {
     return 0;
 }
 
+// Timer 1
+void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
+    IFS0bits.T1IF = 0; 
+    if (!running && pressActive) {
+        ioFlag = 1; 
+    }
+
+    if (pressDuration >= 180 && !longPress) {
+        longPress = 1; 
+    }
+}
 
 
 
 // Timer 2 interrupt subroutine
 void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
     IFS0bits.T2IF = 0;
-    T2CONbits.TON=0;
     TMR2 = 0;
     T2flag = 1;
 }
@@ -139,14 +168,17 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     IFS0bits.T3IF = 0;
     if (pressActive) {
         pressDuration++;
-        if (pressDuration >= 120) {   
+        if (pressDuration >= 60 && !T1CONbits.TON && !running) {
+            TMR1 = 0;
+            IFS0bits.T1IF = 0;
+            T1CONbits.TON = 1;
+        }
+        if (pressDuration >= 120 && !longPress) {
             longPress = 1;
-            pressDone = 1;    
-            pressActive = 0;
-            T3CONbits.TON = 0;
         }
     }
 }
+
 
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
     IFS1bits.CNIF = 0;
@@ -155,6 +187,9 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
     pb3 = !PORTAbits.RA4;
     uint8_t anyPressed = pb1 || pb2 || pb3;
     if (anyPressed) {
+        if (pb1) pb1Event = 1;
+        if (pb2) pb2Event = 1;
+        if (pb3) pb3Event = 1;
         pressActive = 1;
         pressDone = 0;
         longPress = 0;
@@ -166,6 +201,7 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
         pressActive = 0;
         pressDone = 1;
         T3CONbits.TON = 0;
+        T1CONbits.TON = 0;
     }
     
 }
