@@ -100,7 +100,7 @@ void IOcheck(){
                 Disp2String("\rPB2 and PB3 are pressed");
             }
             else{
-                Disp2String("\rPB1 and PB3 are pressed");
+                DispTime(min,sec);
             }
         }
         else if(pressed == 3){
