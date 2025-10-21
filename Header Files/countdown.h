@@ -1,0 +1,12 @@
+#ifndef COUNTDOWN_H
+#define COUNTDOWN_H
+
+#include <xc.h>
+
+extern volatile uint8_t countdown;
+
+
+void startTimer(uint8_t min, uint8_t sec);
+void updateTimer(void);
+
+#endif
