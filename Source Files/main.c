@@ -54,11 +54,14 @@
 #include "clkChange.h"
 #include "UART2.h"
 #include "IOs.h"
-extern volatile uint8_t longPress = 0; // Flag for the long press
-extern volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
-extern volatile uint8_t pressActive = 0; //Checks if any button is pressed
-extern volatile uint8_t pressDone = 0;
+#include "countdown.h"
+volatile uint8_t longPress = 0; // Flag for the long press
+volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
+volatile uint8_t pressActive = 0; //Checks if any button is pressed
+volatile uint8_t pressDone = 0;
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
+uint8_t running = 0; // false by default
+uint8_t T2flag = 0;
 
 
 
@@ -70,40 +73,40 @@ uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 int main(void) {
     AD1PCFG = 0xFFFF; /* keep this line as it sets I/O pins that can also be analog to be digital */
     
-    newClk(500);
+    
+    // === Timer 2: 1 second update timer for countdown ===
+    T2CONbits.T32 = 0;
+    T2CONbits.TCKPS = 3;
+    T2CONbits.TCS = 0;
+    T2CONbits.TSIDL = 0;
+    
+    IPC1bits.T2IP0 = 7;
+    IEC0bits.T2IE = 1;
+    IFS0bits.T2IF = 0;
+    
 
-    // === TIMER 1: 1-second periodic timer ===
-    T1CONbits.TON = 0;        // Off initially
-    T1CONbits.TCS = 0;        // Internal clock (Fcy)
-    T1CONbits.TCKPS = 3;      // 1:256 prescaler
-    T1CONbits.TSIDL = 0;      // Continue in Idle
-    IPC0bits.T1IP = 2;        // Priority
-    IFS0bits.T1IF = 0;        // Clear interrupt flag
-    IEC0bits.T1IE = 1;        // Enable interrupt
-
-    PR1 = 976;                // 1-second period at Fcy=250kHz, prescale=256
-    TMR1 = 0;
-
+    PR2= 977; //1 sec period
+    TMR2 = 0;
     // === TIMER 3: Press-duration timer ===
     T3CONbits.TON = 0;       // keep off until needed
     T3CONbits.TCS = 0;       // internal clock
-    T3CONbits.TCKPS = 2;     // 1:64 prescale
+    T3CONbits.TCKPS = 3;     // 1:256 prescale
     T3CONbits.TSIDL = 0;     // run in idle mode
     IPC2bits.T3IP = 2;       // priority = 2
     IFS0bits.T3IF = 0;       // clear flag
     IEC0bits.T3IE = 1;  // enable interrupt
-    PR3 = 100; // 25 ms period
+    PR3 = 48; // 25 ms period
     TMR3 = 0;
     
     
 
    
-    /* Initilizations */    
+    /* Initializations */    
     IOinit();
+    newClk(500);
   
     
     while(1) {
-        
         Idle();
         // If a PB event occurs run this code
         if (pressDone) {
@@ -112,28 +115,23 @@ int main(void) {
             longPress = 0;
             pressDuration = 0;
         }
+        if(running){
+            updateTimer();
+        }
     }
     
     return 0;
 }
 
 
-// Timer 1
-void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
-    IFS0bits.T1IF = 0;     // Clear interrupt flag
-    if (!running) {
-        if(pressDuration >= 180){
-            // This is so when PB1 is held down for long enough it starts incrementing by 5 instead of by 1
-            longPress = 1;
-        }
-        pressDone = 1;
-    }
-}
 
 
 // Timer 2 interrupt subroutine
 void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
-
+    IFS0bits.T2IF = 0;
+    T2CONbits.TON=0;
+    TMR2 = 0;
+    T2flag = 1;
 }
 
 // Timer 3 interrupt Long vs Short button press
@@ -141,11 +139,7 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     IFS0bits.T3IF = 0;
     if (pressActive) {
         pressDuration++;
-        if(pressDuration >= 60 && !running){
-            pressDone = 1;
-            T1CONbits.TON = 1;
-        }
-        if (pressDuration >= 120 && running) {   
+        if (pressDuration >= 120) {   
             longPress = 1;
             pressDone = 1;    
             pressActive = 0;
@@ -172,8 +166,7 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
         pressActive = 0;
         pressDone = 1;
         T3CONbits.TON = 0;
-        T1CONbits.TON = 0;       
     }
+    
 }
-
 
