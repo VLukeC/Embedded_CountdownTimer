@@ -8,5 +8,6 @@ extern volatile uint8_t countdown;
 
 void startTimer(uint8_t min, uint8_t sec);
 void updateTimer(void);
+void alarm_flash(void);
 
 #endif
