@@ -65,6 +65,7 @@ uint8_t T1flag = 0;
 uint8_t T2flag = 0;
 uint8_t CNflag = 0;
 uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0;
+uint8_t alarm = 0;
 
 
 
@@ -86,7 +87,7 @@ int main(void) {
     IPC0bits.T1IP = 2;        // Priority
     IFS0bits.T1IF = 0;        // Clear interrupt flag
     IEC0bits.T1IE = 1;        // Enable interrupt
-    PR1 = 600;                  //~.75 seconds
+    PR1 = 450;                  //~.5 seconds
     TMR1 = 0;
     
     
@@ -117,6 +118,7 @@ int main(void) {
     newClk(500);
   
     DispTime(min,sec); // Starting Time
+    Disp2String("               "); //clear line
     while(1) {
         Idle();
         if (pressActive) {
@@ -125,6 +127,7 @@ int main(void) {
         if(running){
             updateTimer();
         }
+        if(alarm) alarm_flash();
     }
     
     return 0;
@@ -185,6 +188,15 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
 
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
     IFS1bits.CNIF = 0;
+    
+    //Snooze alarm if on
+    if(alarm){
+        LATBbits.LATB9 = 0;
+        LATAbits.LATA6 = 0;
+        alarm = 0;
+        DispTime(min,sec);
+        Disp2String("\r                       "); // clear alarm
+    }
     // Sets flag and timer - inputs handled by T3Interrupt
     CNflag = 1;
     TMR3 = 0;

@@ -10,9 +10,11 @@
 #include "countdown.h"
 #include "UART2.h"
 #include "IOs.h"
+extern uint8_t alarm;
 volatile uint8_t countdown = 0;
 extern uint8_t T2flag;
 extern uint8_t running;
+extern uint8_t T1flag;
 
 void startTimer(uint8_t min, uint8_t sec){
     DispTime(min,sec);
@@ -42,9 +44,21 @@ void updateTimer(void) {
         }
 
         if (countdown == 0) {
+            alarm = 1;
             running = 0;
             T2CONbits.TON = 0; 
-            Disp2String("\rCountdown Complete!");
+            Disp2String("\rFIN 00m : 00s - ALARM");
         }
+    }
+}
+
+void alarm_flash(void){
+    // Set LED1 ON and flash LED2 rapidly
+    LATBbits.LATB9 = 1;
+    if(T1flag){
+        T1flag = 0;
+        TMR1 = 0;
+        T1CONbits.TON = 1;
+        LATAbits.LATA6 = !LATAbits.LATA6; //Flash LED2
     }
 }

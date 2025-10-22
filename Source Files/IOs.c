@@ -1,8 +1,8 @@
 /*
  * File:   IOs.c
- * Author: Landon
+ * Author: Landon Reed, Luke Chayer, Sam Shojaei
  *
- * Created on September 26, 2025, 3:16 PM
+ * Created on October 21, 2025, 8:10 PM
  */
 
 #include "IOs.h"
@@ -107,17 +107,40 @@ void IOcheck(void) {
                 DispTime(min, sec);
             }
         }
-        //PB2 and PB3 pressed
+        // PB3 Held and PB2 Pressed
         else if (pb2Event && pb3Event && !pb1Event) {
-            Disp2String("\rPB2 and PB3 pressed");
+            while(pressActive){
+                if(pb2Event){
+                    pb2Event = 0;
+                    min--;
+                    if(min == 255){
+                        min = 59;
+                    }
+                    DispTime(min, sec);
+                }
+            }
         }
-        //PB1 and PB3 pressed
+        // PB3 Held and PB1 Pressed
         else if (pb1Event && pb3Event && !pb2Event) {
-            Disp2String("\rPB1 and PB3 pressed");
+            while(pressActive){
+                if(pb1Event){
+                    pb1Event = 0;
+                    sec--;
+                    if(sec == 255){
+                        sec = 59;
+                    }
+                    DispTime(min, sec);
+                }
+            }
         }
+        // All Three held
         else if(pb1Event && pb2Event && pb3Event){
-            LATBbits.LATB9 = 1;
-            Disp2String("\r2025 ENSF 460 L02 - Group02");
+            while(pressActive){
+                Disp2String("\r2025 ENSF 460 L02 - Group 02");
+            }
+            //Clear line and display timer again
+            Disp2String("\r                                  ");
+            DispTime(min,sec);
         }
 
         // clear all events after handling
@@ -125,9 +148,18 @@ void IOcheck(void) {
     }
     if(running){
         if(pb3Event && !pb1Event && !pb2Event){
-            T2CONbits.TON = 0; 
-            running = 0;
-            paused = 1;
+            while(pressActive && !longPress){} // Wait to see if long press while held
+            if (!longPress){
+                T2CONbits.TON = 0; 
+                running = 0;
+                paused = 1;
+            }
+            else {
+                running = 0;
+                min = 0;
+                sec = 0;
+                DispTime(min, sec);
+            }
         }
         pb1Event = pb2Event = pb3Event = 0;
     }
