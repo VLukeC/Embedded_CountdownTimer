@@ -56,14 +56,14 @@
 #include "IOs.h"
 #include "countdown.h"
 volatile uint8_t longPress = 0; // Flag for the long press
-volatile uint8_t pressDuration = 0; // Every 0.5s this is incremented so when it reaches 6 it is a 3s long press
 volatile uint8_t pressActive = 0; //Checks if any button is pressed
 volatile uint8_t pressDone = 0;
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
 uint8_t running = 0; // false by default
 uint8_t paused = 0;
+uint8_t T1flag = 0;
 uint8_t T2flag = 0;
-uint8_t ioFlag = 0;
+uint8_t CNflag = 0;
 uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0;
 
 
@@ -76,6 +76,8 @@ uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0;
 int main(void) {
     AD1PCFG = 0xFFFF; /* keep this line as it sets I/O pins that can also be analog to be digital */
 
+    /* Initializations */  
+    
     // === TIMER 1: 1-second periodic timer ===
     T1CONbits.TON = 0;        // Off initially
     T1CONbits.TCS = 0;        // Internal clock (Fcy)
@@ -84,8 +86,7 @@ int main(void) {
     IPC0bits.T1IP = 2;        // Priority
     IFS0bits.T1IF = 0;        // Clear interrupt flag
     IEC0bits.T1IE = 1;        // Enable interrupt
-
-    PR1 = 976;             
+    PR1 = 600;                  //~.75 seconds
     TMR1 = 0;
     
     
@@ -98,11 +99,10 @@ int main(void) {
     IPC1bits.T2IP0 = 7;
     IEC0bits.T2IE = 1;
     IFS0bits.T2IF = 0;
-    
-
     PR2= 977; //1 sec period
     TMR2 = 0;
-    // === TIMER 3: Press-duration timer ===
+    
+    // === TIMER 3: CNDebounce ===
     T3CONbits.TON = 0;       // keep off until needed
     T3CONbits.TCS = 0;       // internal clock
     T3CONbits.TCKPS = 3;     // 1:256 prescale
@@ -110,29 +110,17 @@ int main(void) {
     IPC2bits.T3IP = 2;       // priority = 2
     IFS0bits.T3IF = 0;       // clear flag
     IEC0bits.T3IE = 1;  // enable interrupt
-    PR3 = 48; // 25 ms period
+    PR3 = 30;           
     TMR3 = 0;
-    
-    
-
-   
-    /* Initializations */    
+      
     IOinit();
     newClk(500);
   
-    
+    DispTime(min,sec); // Starting Time
     while(1) {
         Idle();
-        // If a PB event occurs run this code
-        if(ioFlag){
-            ioFlag = 0;
+        if (pressActive) {
             IOcheck();
-        }
-        if (pressDone) {
-            IOcheck();
-            pressDone = 0;
-            longPress = 0;
-            pressDuration = 0;
         }
         if(running){
             updateTimer();
@@ -145,12 +133,12 @@ int main(void) {
 // Timer 1
 void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     IFS0bits.T1IF = 0; 
-    if (!running && pressActive) {
-        ioFlag = 1; 
-    }
-
-    if (pressDuration >= 180 && !longPress) {
-        longPress = 1; 
+    TMR1 = 0;
+    T1flag = 1;
+    static uint8_t long_counter;
+    if(++long_counter >= 3){
+        longPress = 1;
+        long_counter = 0;
     }
 }
 
@@ -163,18 +151,33 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
     T2flag = 1;
 }
 
-// Timer 3 interrupt Long vs Short button press
+// Timer 3 de-bounce
 void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
     IFS0bits.T3IF = 0;
-    if (pressActive) {
-        pressDuration++;
-        if (pressDuration >= 60 && !T1CONbits.TON && !running) {
-            TMR1 = 0;
-            IFS0bits.T1IF = 0;
+    T3CONbits.TON = 0;
+    if(CNflag){
+        CNflag = 0;
+        pb1 = !PORTBbits.RB7;
+        pb2 = !PORTBbits.RB4;
+        pb3 = !PORTAbits.RA4;
+        uint8_t anyPressed = pb1 || pb2 || pb3;
+        if (anyPressed) {
+            if (pb1) pb1Event = 1;
+            if (pb2) pb2Event = 1;
+            if (pb3) pb3Event = 1;
+            pressActive = 1;
+            longPress = 0;
+            
+            // Increment_delay
+            TMR1 =0;
             T1CONbits.TON = 1;
+            T1flag = 1; //for initial presses
         }
-        if (pressDuration >= 120 && !longPress) {
-            longPress = 1;
+        else if (pressActive) {
+            longPress = 0;
+            pressActive = 0;
+            T3CONbits.TON = 0;
+            T1CONbits.TON = 0;
         }
     }
 }
@@ -182,27 +185,9 @@ void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
 
 void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
     IFS1bits.CNIF = 0;
-    pb1 = !PORTBbits.RB7;
-    pb2 = !PORTBbits.RB4;
-    pb3 = !PORTAbits.RA4;
-    uint8_t anyPressed = pb1 || pb2 || pb3;
-    if (anyPressed) {
-        if (pb1) pb1Event = 1;
-        if (pb2) pb2Event = 1;
-        if (pb3) pb3Event = 1;
-        pressActive = 1;
-        pressDone = 0;
-        longPress = 0;
-        pressDuration = 0;
-        TMR3 = 0;
-        T3CONbits.TON = 1;       
-    }
-    else if (pressActive) {
-        pressActive = 0;
-        pressDone = 1;
-        T3CONbits.TON = 0;
-        T1CONbits.TON = 0;
-    }
-    
+    // Sets flag and timer - inputs handled by T3Interrupt
+    CNflag = 1;
+    TMR3 = 0;
+    T3CONbits.TON = 1;
 }
 

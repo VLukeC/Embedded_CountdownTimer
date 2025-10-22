@@ -12,11 +12,12 @@
 
 extern uint8_t pb1, pb2, pb3;
 extern uint8_t min=0, sec=0;
+extern uint8_t T1flag;
 extern uint8_t T2flag;
 extern uint8_t running;
 extern uint8_t paused;
-extern uint8_t ioFlag;
 extern uint8_t pb1Event, pb2Event, pb3Event;
+extern volatile uint8_t longPress;
 void IOinit() {
     // LEDS
     TRISBbits.TRISB9 = 0;
@@ -47,33 +48,45 @@ void IOinit() {
     
     IEC1bits.CNIE = 1;
     
-    // UArt
     
-   
 }
 
-
+//Delays incrementing of value while button held.
+void increment_delay(void){
+    T1flag = 0;
+    TMR1 = 0;
+    T1CONbits.TON = 1;
+}
 
 void IOcheck(void) {
     // Only one press type is handled at a time for simplicity
     if (!running) {
         //PB 1 Press
         if (pb1Event && !pb2Event && !pb3Event) {
-            // PB1 short or long hold
-            if (longPress) {
-                sec += 5;
-            } else {
-                sec += 1;
+            while(pressActive && !pb2Event){// PB1 short or long hold
+                if (longPress && T1flag ==1) {
+                    increment_delay();
+                    sec += 5;
+                } else if(T1flag == 1){
+                    increment_delay();
+                    sec += 1;
+                }
+                if (sec > 59) sec = 0;
+                DispTime(min, sec);
             }
-            if (sec > 59) sec = 0;
-            DispTime(min, sec);
         }
         // PB 2 pressed
         else if (pb2Event && !pb1Event && !pb3Event) {
             // PB2 short press
-            min += 1;
-            if (min > 59) min = 0;
-            DispTime(min, sec);
+            while(pressActive && !pb1Event){
+                if(T1flag == 1){
+                    increment_delay();
+                    min+=1;
+                }
+                if (min > 59) min = 0;
+                DispTime(min, sec);
+            }
+            
         }
         //PB 3 pressed
         else if(pb3Event && !pb1Event && !pb2Event){
@@ -84,6 +97,7 @@ void IOcheck(void) {
         }
         // PB1 and PB2 pressed
         else if (pb1Event && pb2Event && !pb3Event) {
+            while(pressActive && !longPress){} //Wait to see if long press is triggered while buttons held
             if (!longPress) {
                 running = 1;
                 startTimer(min, sec);
