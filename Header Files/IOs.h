@@ -8,10 +8,11 @@ extern uint8_t min, sec;
 extern uint8_t paused;
 extern uint8_t pb1Event, pb2Event, pb3Event;
 
-// Function declarations
 void IOinit();
 
 void increment_delay(void);
+
+void register_inputs(void);
 
 void IOcheck();
 
