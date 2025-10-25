@@ -18,6 +18,7 @@
 unsigned int clkval;
 extern uint8_t running;
 extern uint8_t alarm;
+extern uint8_t clr;
 
 ///// Initialization of UART 2 module.
 
@@ -227,13 +228,15 @@ void Disp2String(char *str) //Displays String of characters
 
 void DispTime(uint8_t min, uint8_t sec)
 {
-    if(!running && !alarm) Disp2String("\rSET ");
+    if(!running && !alarm && !clr) Disp2String("\rSET ");
     else if(running && !alarm) Disp2String("\rCNT ");
-    //XmitUART2('\r', 1); // return cursor to line start
+    else if(!running && clr){
+        Disp2String("\rCLR ");
+        clr = 0;
+    }
     XmitUART2((min / 10) + '0', 1);
     XmitUART2((min % 10) + '0', 1);
     Disp2String("m : ");
-    //XmitUART2(':', 1);
     XmitUART2((sec / 10) + '0', 1);
     XmitUART2((sec % 10) + '0', 1);
     XmitUART2('s',1);

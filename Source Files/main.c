@@ -1,8 +1,8 @@
 /*
  * File:   main.c
- * Author: Landon Reed
+ * Author: Landon Reed, Luke Chayer, Sam Shojaei
  *
- * Created on: USE THE INFORMATION FROM THE HEADER MPLAB X IDE GENERATES FOR YOU
+ * Last edited: Oct 24, 2025
  */
 
 // FBS
@@ -55,23 +55,26 @@
 #include "UART2.h"
 #include "IOs.h"
 #include "countdown.h"
-// Global Variables
 volatile uint8_t longPress = 0; // Flag for the long press
 volatile uint8_t pressActive = 0; //Checks if any button is pressed
-volatile uint8_t pressDone = 0; // Flag for button released
+volatile uint8_t pressDone = 0;
 uint8_t pb1 = 0, pb2 = 0, pb3 = 0;
-uint8_t running = 0; // false by default, flag for if the clock has started or not
-uint8_t paused = 0;  // Flag for if the clock has been paused
-uint8_t T1flag = 0;    // T1 Interrupt flag
-uint8_t T2flag = 0;     // T2 Interrupt flag
-uint8_t CNflag = 0;     // CN Interrupt flag
-uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0; //Flag for PB events
-uint8_t alarm = 0;              // Alarm active Flag
+uint8_t running = 0; // false by default
+uint8_t paused = 0;
+uint8_t T1flag = 0;
+uint8_t T2flag = 0;
+uint8_t T3flag = 0;
+uint8_t CNflag = 0;
+uint8_t pb1Event = 0, pb2Event = 0, pb3Event = 0;
+uint8_t alarm = 0;
 
 
 
 
-// Main Program
+/**
+ * You might find it useful to add your own #defines to improve readability here
+ */
+
 int main(void) {
     AD1PCFG = 0xFFFF; /* keep this line as it sets I/O pins that can also be analog to be digital */
 
@@ -90,15 +93,16 @@ int main(void) {
     
     
     // === Timer 2: 1 second update timer for countdown ===
-    T2CONbits.T32 = 0;      // Off initially
-    T2CONbits.TCKPS = 3;    // 1:256 prescalar
-    T2CONbits.TCS = 0;      // Internal clock
-    T2CONbits.TSIDL = 0;    //Continue in idle
-    IPC1bits.T2IP0 = 7;     // Priority
-    IEC0bits.T2IE = 1;      // Enable Inerrupt
-    IFS0bits.T2IF = 0;      // Clear flag
-    PR2= 977;               //1 sec period
-    TMR2 = 0;               
+    T2CONbits.T32 = 0;
+    T2CONbits.TCKPS = 3;
+    T2CONbits.TCS = 0;
+    T2CONbits.TSIDL = 0;
+    
+    IPC1bits.T2IP0 = 7;
+    IEC0bits.T2IE = 1;
+    IFS0bits.T2IF = 0;
+    PR2= 977; //1 sec period
+    TMR2 = 0;
     
     // === TIMER 3: CNDebounce ===
     T3CONbits.TON = 0;       // keep off until needed
@@ -111,21 +115,20 @@ int main(void) {
     PR3 = 30;           
     TMR3 = 0;
       
-    IOinit(); // Initilize pins and CN interrupts
-    newClk(500);    // change clock frequency to 500kHz
+    IOinit();
+    newClk(500);
   
     DispTime(min,sec); // Starting Time
     Disp2String("               "); //clear line
-    //Main Loop
     while(1) {
-        Idle(); // Wait for interrupts
-        if (pressActive) {
-            IOcheck();  // Process button input
+        Idle();
+        if(T3flag){
+            register_inputs();
         }
         if(running){
-            updateTimer();  // While the clock is running run the update timer function
+            updateTimer();
         }
-        if(alarm) alarm_flash();    // When alarm flag is raised, run this function
+        if(alarm) alarm_flash();
     }
     
     return 0;
@@ -137,7 +140,6 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     TMR1 = 0;
     T1flag = 1;
     static uint8_t long_counter;
-    // Every 3 half seconds set the longPress flag
     if(++long_counter >= 3){
         longPress = 1;
         long_counter = 0;
@@ -155,38 +157,11 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt(void) {
 
 // Timer 3 de-bounce
 void __attribute__((interrupt, no_auto_psv)) _T3Interrupt(void){
-    IFS0bits.T3IF = 0;  //Clear interrupt flag
-    T3CONbits.TON = 0; // Stop debounce timer
-    if(CNflag){
-        CNflag = 0; //Clear CN flag
-
-        // Read states of button
-        pb1 = !PORTBbits.RB7;
-        pb2 = !PORTBbits.RB4;
-        pb3 = !PORTAbits.RA4;
-        // Check if any button has been pressed
-        uint8_t anyPressed = pb1 || pb2 || pb3;
-        if (anyPressed) {
-            // Record which button(s) triggered
-            if (pb1) pb1Event = 1;
-            if (pb2) pb2Event = 1;
-            if (pb3) pb3Event = 1;
-            pressActive = 1;
-            longPress = 0;
-            
-            // Increment_delay
-            TMR1 =0;
-            T1CONbits.TON = 1;
-            T1flag = 1; //for initial presses
-        }
-        else if (pressActive) {
-            // If button is released stop tracking
-            longPress = 0;
-            pressActive = 0;
-            T3CONbits.TON = 0;
-            T1CONbits.TON = 0;
-        }
-    }
+    IFS0bits.T3IF = 0;
+    T3CONbits.TON = 0;
+    T3flag = 1;
+    CNflag = 0;
+    
 }
 
 
@@ -198,12 +173,13 @@ void __attribute__((interrupt, no_auto_psv)) _CNInterrupt(void){
         LATBbits.LATB9 = 0;
         LATAbits.LATA6 = 0;
         alarm = 0;
-        DispTime(min,sec);
         Disp2String("\r                       "); // clear alarm
+        DispTime(min,sec);
     }
     // Sets flag and timer - inputs handled by T3Interrupt
     CNflag = 1;
     TMR3 = 0;
     T3CONbits.TON = 1;
+    if(pressActive == 1) pressActive = 0;
 }
 
