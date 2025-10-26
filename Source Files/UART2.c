@@ -226,7 +226,7 @@ void Disp2String(char *str) //Displays String of characters
     return;
 }
 
-void DispTime(uint8_t min, uint8_t sec)
+void DispTime(uint8_t min, uint8_t sec) // Displays time on uart
 {
     if(!running && !alarm && !clr) Disp2String("\rSET ");
     else if(running && !alarm) Disp2String("\rCNT ");
@@ -234,10 +234,14 @@ void DispTime(uint8_t min, uint8_t sec)
         Disp2String("\rCLR ");
         clr = 0;
     }
+    // Display minutes
     XmitUART2((min / 10) + '0', 1);
     XmitUART2((min % 10) + '0', 1);
+    // Display minutes unit
     Disp2String("m : ");
+    // Display seconds
     XmitUART2((sec / 10) + '0', 1);
     XmitUART2((sec % 10) + '0', 1);
+    // Display seconds unit
     XmitUART2('s',1);
 }
