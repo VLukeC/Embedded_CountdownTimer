@@ -150,7 +150,7 @@ void __attribute__((interrupt, no_auto_psv)) _T1Interrupt(void) {
     TMR1 = 0;
     T1flag = 1;
     static uint8_t long_counter;
-    if(++long_counter >= 3){
+    if(++long_counter >= 5){
         longPress = 1;
         long_counter = 0;
     }

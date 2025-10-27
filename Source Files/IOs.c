@@ -133,7 +133,7 @@ void IOcheck(void) {
         }
         //PB 3 pressed
         else if(pb3Event && !pb1Event && !pb2Event){
-            // If its pasused unpause it and start the timer again
+            // If its paused, unpause it and start the timer again
             if(paused){
                 running = 1;
                 T2CONbits.TON = 1; 
@@ -210,7 +210,9 @@ void IOcheck(void) {
             }
             // If long press: reset
             else {
+                LATBbits.LATB9 = 0;
                 running = 0;
+                paused = 0;
                 clr = 1;
                 min = 0;
                 sec = 0;
